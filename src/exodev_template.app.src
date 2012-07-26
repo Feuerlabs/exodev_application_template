@@ -1,0 +1,12 @@
+{application, exodev_template,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { exodev_template, []}},
+  {env, []}
+ ]}.

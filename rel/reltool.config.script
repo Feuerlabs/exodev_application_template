@@ -1,0 +1,72 @@
+%%%---- BEGIN COPYRIGHT -------------------------------------------------------
+%%%
+%%% Copyright (C) 2012 Feuerlabs, Inc. All rights reserved.
+%%%
+%%% This Source Code Form is subject to the terms of the Mozilla Public
+%%% License, v. 2.0. If a copy of the MPL was not distributed with this
+%%% file, You can obtain one at http://mozilla.org/MPL/2.0/.
+%%%
+%%%---- END COPYRIGHT ---------------------------------------------------------
+%%
+%% This script will insert a root_dir entry under sys specifying
+%% where the cross compiled erlang root is located.
+%%
+%% See Makefile target-generate for details on how X_COMP_OTP_INSTALL_ROOT
+%% is set.
+%% 
+
+%% Grab the root directory of the installed cross compiled OTP.
+
+case os:getenv("X_COMP_OTP_INSTALL_ROOT") of
+    false ->
+        OTPRoot = code:root_dir();
+    OTPRoot ->
+        true
+end,
+
+%%
+%% Read the rel entries from the deps' exodev entry
+%%
+case file:consult(filename:join(["..", "deps", "exodev", "release_spec.config"])) of 
+    {ok, Spec} ->
+        case lists:keyfind(rels, 1, Spec) of
+            false ->
+                RelSpec = [];
+            {_, RelSpec} ->
+                true
+        end,
+
+        case lists:keyfind(apps, 1, Spec) of
+            false ->
+                AppSpec = [];
+            {_, AppSpec} ->
+                true
+        end,
+
+        %% Grab the top level sys entry.
+        case lists:keytake(sys, 1, CONFIG) of
+            false ->
+                CONFIG;
+            
+            { value, {_, Sys}, Rem } -> 
+                %% Add OTP root to sys entry.
+                %% Also add all the app entries.
+                Sys1 = [ { root_dir, OTPRoot} | Sys ++ AppSpec], 
+                
+                %% Locate the boot release, whose rel entry
+                %% we shall expand.
+                {boot_rel, BootRel} = lists:keyfind(boot_rel, 1, Sys1),
+
+                %% Grab the rel entry from sys list.
+                case lists:keytake(rel, 1, Sys1) of
+                    false ->
+                        [ {sys, Sys1} | Rem ];
+
+                    { value, {rel, BootRel, BootVer, Rel1}, RelRem } -> 
+                        %% Setup the new rel entry.
+                        Rel2 = Rel1 ++ RelSpec ++ RelRem,
+                        %% Return the complete reltool.config list
+                        [ {sys, Sys1}, {rel, BootRel, BootVer, Rel2 } | Rem]
+                end
+        end
+end.

@@ -1,0 +1,71 @@
+#!/usr/bin/env escript
+
+%%%---- BEGIN COPYRIGHT -------------------------------------------------------
+%%%
+%%% Copyright (C) 2012 Feuerlabs, Inc. All rights reserved.
+%%%
+%%% This Source Code Form is subject to the terms of the Mozilla Public
+%%% License, v. 2.0. If a copy of the MPL was not distributed with this
+%%% file, You can obtain one at http://mozilla.org/MPL/2.0/.
+%%%
+%%%---- END COPYRIGHT ---------------------------------------------------------
+
+%% -*- erlang -*-
+%%! -smp enable 
+
+%%
+%% Simple script to parse exodev_build.config and print out the value
+%% of a given entry. Only works for entries that have strings as their values.
+%%
+main([BuildConfig, EnvVar]) ->
+    case file:consult(BuildConfig) of
+
+        {error, FileError } -> 
+            io:format(standard_error, "~s: ~s\n", [BuildConfig, file:format_error(FileError)]),
+            List = [], %% To get escript to STFU about unsafe variables
+            halt(2);
+
+        {error, { Line, erl_parse, Reason }} -> 
+            io:format(standard_error, "error ~s: ~p: ~p\n", [BuildConfig, Line, Reason]),
+            List = [], %% To get escript to STFU about unsafe variables
+            halt(3);
+
+        {ok, List } ->
+            true
+    end,
+    case lists:keyfind(list_to_atom(EnvVar), 1, List) of
+        false ->
+            io:format(standard_error, "~s not found in ~s\n", [EnvVar, BuildConfig]),
+            Value = [],%% To get escript to STFU about unsafe variables
+            halt(4);
+
+        { _, Value } ->
+            true
+    end,
+
+    io:format("~s\n", [Value]),
+    halt(0);
+
+
+%%
+%% Just check if the file can be read or not
+%%
+main([BuildConfig]) ->
+    case file:consult(BuildConfig) of
+
+        {error, FileError } -> 
+            io:format(standard_error, "~s: ~s\n", [BuildConfig, file:format_error(FileError)]),
+            halt(2);
+
+        {error, { Line, erl_parse, Reason }} -> 
+            io:format(standard_error, "error ~s: ~p: ~p\n", [BuildConfig, Line, Reason]),
+            halt(3);
+
+        {ok, _ } ->
+            io:format("ok\n"),
+            halt(0)
+    end;
+
+main(_) ->
+    io:format("Usage: get_build_config build_config_file key\n", []),
+    halt(1).
