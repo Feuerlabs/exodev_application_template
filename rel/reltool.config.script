@@ -24,9 +24,7 @@ case os:getenv("X_COMP_OTP_INSTALL_ROOT") of
         true
 end,
 
-%%
 %% Read the rel entries from the deps' exodev entry
-%%
 case file:consult(filename:join(["..", "deps", "exodev", "release_spec.config"])) of 
     {ok, Spec} ->
         case lists:keyfind(rels, 1, Spec) of
@@ -47,12 +45,12 @@ case file:consult(filename:join(["..", "deps", "exodev", "release_spec.config"])
         case lists:keytake(sys, 1, CONFIG) of
             false ->
                 CONFIG;
-            
+
             { value, {_, Sys}, Rem } -> 
                 %% Add OTP root to sys entry.
                 %% Also add all the app entries.
                 Sys1 = [ { root_dir, OTPRoot} | Sys ++ AppSpec], 
-                
+
                 %% Locate the boot release, whose rel entry
                 %% we shall expand.
                 {boot_rel, BootRel} = lists:keyfind(boot_rel, 1, Sys1),
@@ -64,9 +62,13 @@ case file:consult(filename:join(["..", "deps", "exodev", "release_spec.config"])
 
                     { value, {rel, BootRel, BootVer, Rel1}, RelRem } -> 
                         %% Setup the new rel entry.
-                        Rel2 = Rel1 ++ RelSpec ++ RelRem,
+                        Rel2 = Rel1 ++ RelSpec,
                         %% Return the complete reltool.config list
-                        [ {sys, Sys1}, {rel, BootRel, BootVer, Rel2 } | Rem]
+                        Res = [ {sys,  [ {rel, BootRel, BootVer, Rel2 } | RelRem] } | Rem ],
+                        Res
                 end
-        end
+        end;
+    _ ->
+        CONFIG
+
 end.
