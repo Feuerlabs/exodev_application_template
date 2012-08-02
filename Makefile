@@ -116,6 +116,34 @@ X_COMP_OTP_BUILT=$(X_COMP_OTP_BUILD_ROOT)/bin/$(X_COMP_BUILD_ARCH)/beam
 # We use the readme file in the OTP root.
 X_COMP_OTP_UNPACKED=$(X_COMP_OTP_BUILD_ROOT)/README.md
 
+
+# URL where we can find OPENSSL source tar balls.
+X_COMP_OPENSSL_DOWNLOAD_URL:=$(shell ./get_build_config_val $(EXODEV_BUILD_CFG_FILE) x_comp_openssl_download_url 2>/tmp/otp_err4)
+
+# Which file to download from the URL above.
+X_COMP_OPENSSL_DOWNLOAD_FILE:=$(shell ./get_build_config_val $(EXODEV_BUILD_CFG_FILE) x_comp_openssl_download_file 2>/tmp/otp_err5)
+
+# Directory where the OPENSSL source tar ball is unpacked into.
+X_COMP_OPENSSL_BUILD_ROOT:=$(shell basename "$(X_COMP_OPENSSL_DOWNLOAD_FILE)" .tar.gz)
+
+# Where is the built erlang OPENSSL installed.
+X_COMP_OPENSSL_INSTALL_ROOT=$(PWD)/openssl-$(X_COMP_TARGET_ARCH)
+
+# Target indicating that the entire OPENSSL has been installed.
+X_COMP_OPENSSL_INSTALLED=$(X_COMP_OPENSSL_INSTALL_ROOT)/lib/libcrypto.a
+
+# Target indicating that that openssl has been configured
+X_COMP_OPENSSL_CONFIGURED=$(X_COMP_OPENSSL_BUILD_ROOT)/Makefile
+
+# Target indicating that the OPENSSL has been built for the build host.
+# We use the beam binary in the self's arch subdirectory under the bin directory
+X_COMP_OPENSSL_BUILT=$(X_COMP_OPENSSL_BUILD_ROOT)/libcrypto.a
+
+# Target indicating that the OPENSSL has been built for the build host.
+# We use the readme file in the OPENSSL root.
+X_COMP_OPENSSL_UNPACKED=$(X_COMP_OPENSSL_BUILD_ROOT)/.unpacked
+
+
 .PHONY: all compile clean release upgrade otp check_build_config check_x_compile
 
 all: compile
@@ -225,8 +253,7 @@ ifneq ($(shell /bin/ls $(X_COMP_KERNEL_HEADERS)/linux/errno.h 2>/dev/null), \
 endif
 
 
-# Target indicating that the ./configure --enable-bootstrap-only process has been executed
-otp: check_build_config $(X_COMP_OTP_INSTALLED)
+otp: check_build_config $(X_COMP_OPENSSL_INSTALLED) $(X_COMP_OTP_INSTALLED)
 
 # Install the cross compiled OTP system.
 $(X_COMP_OTP_INSTALLED): $(X_COMP_OTP_X_BUILT)
@@ -241,11 +268,12 @@ $(X_COMP_OTP_X_BUILT): $(X_COMP_OTP_BUILT)
 		LD=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ld \
 		AR=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ar \
 		RANLIB=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ranlib \
+		erl_xcomp_sysroot=$(X_COMP_OPENSSL_INSTALL_ROOT) \
 		./configure --prefix=$(X_COMP_OTP_INSTALL_ROOT) \
+				--with-ssl=$(X_COMP_OPENSSL_INSTALL_ROOT) \
 				--without-termcap \
 				--host=$(X_COMP_TARGET_ARCH) \
-				--build=$(X_COMP_BUILD_ARCH) \
-				--without-ssl);
+				--build=$(X_COMP_BUILD_ARCH));
 	(cd $(X_COMP_OTP_BUILD_ROOT); \
 		CC=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-gcc \
 		CPP=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-cpp \
@@ -270,3 +298,46 @@ $(X_COMP_OTP_DOWNLOAD_FILE):
 # Donwload the OTP source tar ball
 	wget $(X_COMP_OTP_DOWNLOAD_URL)/$(X_COMP_OTP_DOWNLOAD_FILE)
 
+#
+# Download and unpack openssl
+#
+openssl: check_build_config $(X_COMP_OPENSSL_INSTALLED)
+
+# Install the cross compiled OPENSSL system.
+$(X_COMP_OPENSSL_INSTALLED): $(X_COMP_OPENSSL_BUILT)
+	(cd $(X_COMP_OPENSSL_BUILD_ROOT); make install)
+
+# Do a cross compile build of the OPENSSL
+
+$(X_COMP_OPENSSL_BUILT): $(X_COMP_OPENSSL_CONFIGURED)
+	(cd $(X_COMP_OPENSSL_BUILD_ROOT); \
+		CC=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-gcc \
+		CPP=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-cpp \
+		CXX=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-g++ \
+		LD=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ld \
+		AR=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ar \
+		RANLIB=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ranlib \
+		make)
+
+# Configure OpenSSL
+$(X_COMP_OPENSSL_CONFIGURED): $(X_COMP_OPENSSL_UNPACKED)
+	(cd $(X_COMP_OPENSSL_BUILD_ROOT); \
+		CC=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-gcc \
+		CPP=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-cpp \
+		CXX=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-g++ \
+		LD=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ld \
+		AR=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ar \
+		RANLIB=$(X_COMP_TOOLCHAIN_ROOT)/bin/$(X_COMP_TARGET_ARCH)-ranlib \
+		./Configure dist --prefix=$(X_COMP_OPENSSL_INSTALL_ROOT) \
+				shared \
+				no-zlib)
+
+# Unpack the downloaded OPENSSL source tar ball
+$(X_COMP_OPENSSL_UNPACKED): $(X_COMP_OPENSSL_DOWNLOAD_FILE)
+	tar xf $(X_COMP_OPENSSL_DOWNLOAD_FILE)
+	touch $(X_COMP_OPENSSL_UNPACKED)
+
+# Target indicating that the OPENSSL tar ball has been downloaded
+$(X_COMP_OPENSSL_DOWNLOAD_FILE):
+# Donwload the OPENSSL source tar ball
+	wget $(X_COMP_OPENSSL_DOWNLOAD_URL)/$(X_COMP_OPENSSL_DOWNLOAD_FILE)
